@@ -1,7 +1,7 @@
 # Monitor 🚀
-**One-Command MCP System Setup for macOS**
+**Complete Development Environment Setup for macOS**
 
-Complete installation script for MCP System + Claude Desktop + Ghostty Terminal with semantic protection and high-resolution execution capabilities.
+One-command installation script for a complete AI development environment including MCP System, Claude Desktop, Gemini API, LazyVim, Docker, and Ghostty Terminal with semantic protection and high-resolution execution capabilities.
 
 ## ✨ **One-Step Install**
 
@@ -19,28 +19,35 @@ Complete installation script for MCP System + Claude Desktop + Ghostty Terminal 
 - ✅ Git (latest version)
 - ✅ GitHub CLI
 
-### **Applications**
+### **Applications & Tools**
 - 👻 **Ghostty Terminal** (built from source)
 - 🤖 **Claude Desktop** (official release)
+- 💎 **Gemini API** (Google's AI)
+- 📝 **LazyVim** (Neovim distribution)
+- 🐳 **Docker** (containerization)
 - 🔧 **MCP System** (semantic-protected auto-fix)
 
 ### **Python Packages**
 - `mcp` - Model Context Protocol
-- `fastapi` - API framework  
 - `anthropic` - Claude API
+- `google-generativeai` - Gemini API
+- `docker` - Docker Python API
+- `fastapi` - API framework  
 - `rich` - Terminal formatting
 - `watchdog` - File monitoring
 - Development tools: `black`, `mypy`, `pytest`
-- AST analysis: `ast-monitor`, `semantic-version`
+- AST analysis: `semantic-version`
 
 ## 🚀 **Post-Install Usage**
 
 After installation completes:
 
 1. **Restart Terminal** or run `source ~/.zshrc`
-2. **Launch System**: `~/mcp-workspace/launch-mcp-system.sh`
-3. **Open Claude Desktop** from Applications
-4. **Start Coding** with semantic-protected auto-fix!
+2. **Set Gemini API Key**: `export GEMINI_API_KEY="your-key"`
+3. **Start Docker**: `docker-start` (if needed)
+4. **Launch Claude Desktop**: `open -a Claude`
+5. **Start MCP System**: `~/mcp-workspace/launch-mcp-system.sh`
+6. **Launch LazyVim**: `lazy` or `nvim`
 
 ## 📊 **Features Enabled**
 
@@ -53,20 +60,22 @@ After installation completes:
 ## 🔧 **Quick Commands**
 
 ```bash
-# Navigate to MCP system
-mcp-cd
+# MCP System
+mcp-cd               # Navigate to MCP system
+mcp-scan             # Run version scan
+mcp-fix              # Apply auto-fixes  
+mcp-demo             # Test semantic catalog
+mcp-test             # Launch rapid fix test
 
-# Run version scan
-mcp-scan
+# Development Tools
+lazy                 # Launch LazyVim
+lv                   # LazyVim shortcut
+vim/vi               # Aliased to Neovim
+docker-start         # Launch Docker
+gemini-test          # Test Gemini API connection
 
-# Apply auto-fixes  
-mcp-fix --auto-mode --max-fixes=1000
-
-# Test semantic catalog
-mcp-demo
-
-# Launch rapid fix test
-mcp-test
+# API Testing
+export GEMINI_API_KEY="your-key"   # Set Gemini API key
 ```
 
 ## 📂 **Workspace Structure**
