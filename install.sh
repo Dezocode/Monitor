@@ -32,7 +32,7 @@ track_installation() {
 echo "🚀 MONITOR: COMPLETE DEV ENVIRONMENT SETUP"
 echo "==========================================="
 echo "🔗 Repository: https://github.com/Dezocode/Monitor"
-echo "📦 Includes: Claude + Gemini + LazyVim + Docker + Ghostty + MCP"
+echo "📦 Includes: Claude + Gemini CLI + LazyVim + Docker + Ghostty + MCP"
 echo "⏱️  Estimated time: 10-15 minutes"
 echo ""
 
@@ -173,6 +173,29 @@ safe_brew_install "node" "Node.js"
 safe_brew_install "git" "Git"
 safe_brew_install "gh" "GitHub CLI"
 
+# Install official Google Gemini CLI
+log_info "Installing official Google Gemini CLI..."
+if command -v gemini &> /dev/null; then
+    log_warning "Gemini CLI already installed, skipping"
+    track_installation "Gemini CLI" "$(command -v gemini)"
+else
+    # Install via npm (official Google method)
+    log_info "Installing via npm (@google/gemini-cli)..."
+    if npm install -g @google/gemini-cli &>/dev/null; then
+        # Get the actual installation path
+        local npm_global=$(npm root -g 2>/dev/null)
+        if [[ -n "$npm_global" ]]; then
+            track_installation "Gemini CLI" "$npm_global/@google/gemini-cli"
+        else
+            track_installation "Gemini CLI" "$(command -v gemini)"
+        fi
+        log_success "Official Google Gemini CLI installed"
+    else
+        log_error "Failed to install Gemini CLI via npm"
+        log_warning "You can try manual installation: npm install -g @google/gemini-cli"
+    fi
+fi
+
 # Install containerization
 log_info "Installing Docker..."
 safe_brew_cask_install "docker" "Docker"
@@ -261,8 +284,8 @@ python3.12 -m pip install --upgrade pip --user &>/dev/null
 
 # Install packages in batches for better error handling
 log_info "Installing core MCP and API packages..."
-if python3.12 -m pip install --user mcp anthropic openai google-generativeai google-cloud-aiplatform &>/dev/null; then
-    log_success "Core AI APIs installed"
+if python3.12 -m pip install --user mcp anthropic openai &>/dev/null; then
+    log_success "Core AI APIs installed (Claude, OpenAI)"
 else
     log_error "Failed to install some AI API packages"
 fi
@@ -313,16 +336,48 @@ cat > ~/Library/Application\ Support/Claude/claude_desktop_config.json << 'EOFCO
 }
 EOFCONFIG
 
-# Create Gemini API configuration
-echo "💎 Configuring Gemini API..."
-cat > ~/.gemini_config << 'EOFGEMINI'
-# Gemini API Configuration
-# Set your API key: export GEMINI_API_KEY="your-api-key-here"
-# Get your API key from: https://makersuite.google.com/app/apikey
+# Create Gemini CLI setup guide
+log_info "Setting up Gemini CLI configuration..."
+mkdir -p ~/.config/gemini
+cat > ~/.config/gemini/setup-guide.md << 'EOFGEMINI'
+# Gemini CLI Setup Guide
 
-export GEMINI_MODEL="gemini-1.5-pro"
-export GEMINI_TEMPERATURE="0.7"
+## Authentication Options:
+
+### Option 1: Login with Google Account (Recommended - Free Tier)
+```bash
+gemini
+# Follow prompts to login with Google account
+# Gets you: 60 requests/min, 1,000 requests/day for free
+```
+
+### Option 2: API Key Authentication
+```bash
+# Get your API key from: https://aistudio.google.com/app/apikey
+export GOOGLE_API_KEY="your-api-key-here"
+gemini
+```
+
+## Usage Examples:
+```bash
+gemini                    # Start interactive chat
+gemini "What is AI?"      # Direct question
+gemini --help            # Show all options
+```
+
+## Features:
+- ✅ Gemini 2.5 Pro with 1M token context window
+- ✅ Google Search grounding
+- ✅ File operations and shell commands
+- ✅ Web fetching capabilities
+- ✅ MCP (Model Context Protocol) support
+
+## Resources:
+- GitHub: https://github.com/google-gemini/gemini-cli
+- Documentation: https://cloud.google.com/gemini/docs/codeassist/gemini-cli
 EOFGEMINI
+
+log_success "Gemini CLI setup guide created at ~/.config/gemini/setup-guide.md"
 
 # Configure shell
 echo "🔧 Configuring shell environment..."
@@ -336,8 +391,8 @@ export PYTHONPATH="$MCP_SYSTEM_PATH:$PYTHONPATH"
 # Ensure proper PATH ordering
 export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:$PATH"
 
-# Load Gemini configuration
-[[ -f ~/.gemini_config ]] && source ~/.gemini_config
+# Gemini CLI configuration (official Google CLI)
+export GOOGLE_API_KEY="${GOOGLE_API_KEY:-}"
 
 # MCP System Aliases
 alias mcp-cd="cd $MCP_SYSTEM_PATH"
@@ -350,7 +405,8 @@ alias mcp-test="cd $MCP_SYSTEM_PATH && python3.12 test_rapid_semantic_fix.py"
 alias vim="nvim"
 alias vi="nvim"
 alias docker-start="open -a Docker"
-alias gemini-test="python3.12 -c \"import google.generativeai as genai; print('Gemini API ready')\""
+alias gemini-help="gemini --help"
+alias gemini-setup="cat ~/.config/gemini/setup-guide.md"
 
 # LazyVim
 alias lazy="nvim"
@@ -414,11 +470,12 @@ test_tool "python3.12" "python3.12 --version" "Python 3.12"
 test_tool "node" "node --version" "v"
 test_tool "git" "git --version" "git version"
 test_tool "gh" "gh --version" "gh version"
+test_tool "gemini" "gemini --version" ""
 test_tool "nvim" "nvim --version" "NVIM"
 test_tool "docker" "docker --version" "Docker version"
 test_tool "ghostty" "ghostty --version" ""
 
-# Test Python packages
+# Test Python packages and CLI tools
 echo ""
 log_info "Testing Python packages..."
 python3.12 -c "
@@ -426,11 +483,6 @@ try:
     import anthropic; print('✅ Anthropic/Claude API: Ready')
 except ImportError:
     print('❌ Anthropic API: Failed')
-
-try:
-    import google.generativeai; print('✅ Gemini API: Ready') 
-except ImportError:
-    print('❌ Gemini API: Failed')
 
 try:
     import docker; print('✅ Docker Python API: Ready')
@@ -442,6 +494,14 @@ try:
 except ImportError:
     print('❌ MCP Protocol: Failed')
 "
+
+# Test Gemini CLI
+log_info "Testing Gemini CLI..."
+if command -v gemini &> /dev/null; then
+    log_success "Gemini CLI: Available (run 'gemini auth login' to set up)"
+else
+    log_error "Gemini CLI: Not found in PATH"
+fi
 
 # Validate applications
 echo ""
@@ -477,14 +537,14 @@ echo "=========================================="
 echo ""
 echo "🎯 IMMEDIATE NEXT STEPS:"
 echo "1. source ~/.zshrc  # (or restart terminal)"
-echo "2. export GEMINI_API_KEY=\"your-api-key\"  # (get from makersuite.google.com)"
+echo "2. gemini auth login  # (set up Gemini CLI authentication)"
 echo "3. docker-start     # (launch Docker if needed)"
 echo "4. open -a Claude   # (launch Claude Desktop)" 
 echo "5. ~/mcp-workspace/launch-mcp-system.sh  # (start MCP server)"
 echo ""
 echo "🚀 WHAT'S NOW AVAILABLE:"
 echo "   • 🤖 Claude Desktop + Anthropic API"
-echo "   • 💎 Gemini API (Google AI)"
+echo "   • 💎 Gemini CLI (Google AI)"
 echo "   • 📝 LazyVim (modern Neovim)"
 echo "   • 🐳 Docker + containerization"
 echo "   • 👻 Ghostty Terminal"
@@ -497,12 +557,13 @@ echo "   mcp-cd           # Navigate to MCP system"
 echo "   mcp-scan         # Run comprehensive code scan"
 echo "   mcp-fix          # Apply automatic fixes"
 echo "   docker-start     # Launch Docker Desktop"
-echo "   gemini-test      # Test Gemini API connection"
+echo "   gemini-chat      # Start Gemini CLI chat"
+echo "   gemini-help      # Show Gemini CLI help"
 echo ""
 echo "📚 RESOURCES:"
 echo "   • Documentation: https://github.com/Dezocode/Monitor"
 echo "   • MCP System: https://github.com/Dezocode/mcp-system"
-echo "   • Gemini API Key: https://makersuite.google.com/app/apikey"
+echo "   • Gemini API Key: https://aistudio.google.com/app/apikey"
 echo "   • LazyVim Docs: https://lazyvim.org"
 echo ""
 

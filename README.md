@@ -22,7 +22,7 @@ One-command installation script for a complete AI development environment includ
 ### **Applications & Tools**
 - 👻 **Ghostty Terminal** (built from source)
 - 🤖 **Claude Desktop** (official release)
-- 💎 **Gemini API** (Google's AI)
+- 💎 **Gemini CLI** (Google's AI CLI tool)
 - 📝 **LazyVim** (Neovim distribution)
 - 🐳 **Docker** (containerization)
 - 🔧 **MCP System** (semantic-protected auto-fix)
@@ -30,7 +30,6 @@ One-command installation script for a complete AI development environment includ
 ### **Python Packages**
 - `mcp` - Model Context Protocol
 - `anthropic` - Claude API
-- `google-generativeai` - Gemini API
 - `docker` - Docker Python API
 - `fastapi` - API framework  
 - `rich` - Terminal formatting
@@ -43,7 +42,7 @@ One-command installation script for a complete AI development environment includ
 After installation completes:
 
 1. **Restart Terminal** or run `source ~/.zshrc`
-2. **Set Gemini API Key**: `export GEMINI_API_KEY="your-key"`
+2. **Set up Gemini CLI**: `gemini auth login`
 3. **Start Docker**: `docker-start` (if needed)
 4. **Launch Claude Desktop**: `open -a Claude`
 5. **Start MCP System**: `~/mcp-workspace/launch-mcp-system.sh`
