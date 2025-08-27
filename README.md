@@ -9,6 +9,11 @@ One-command installation script for a complete AI development environment includ
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Dezocode/Monitor/main/install.sh)"
 ```
 
+**Verify Installation:**
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Dezocode/Monitor/main/verify-install.sh)"
+```
+
 ## 🎯 **What This Installs**
 
 ### **Core Dependencies**
@@ -42,7 +47,7 @@ One-command installation script for a complete AI development environment includ
 After installation completes:
 
 1. **Restart Terminal** or run `source ~/.zshrc`
-2. **Set up Gemini CLI**: `gemini auth login`
+2. **Set up Gemini CLI**: `gemini` (follow prompts to login)
 3. **Start Docker**: `docker-start` (if needed)
 4. **Launch Claude Code**: `claude`
 5. **Start MCP System**: `~/mcp-workspace/launch-mcp-system.sh`
@@ -94,11 +99,49 @@ export GEMINI_API_KEY="your-key"   # Set Gemini API key
 - 8GB+ RAM recommended
 - 5GB+ free disk space
 - Internet connection for downloads
+- Admin/sudo access for some installations
+
+## 🔒 **Security & Safety**
+
+This script follows security best practices:
+- ✅ Environment verification before execution
+- ✅ Comprehensive error handling and validation
+- ✅ Safe PATH handling with proper escaping
+- ✅ Backup creation for modified shell profiles
+- ✅ Uses official installation sources only
+- ✅ Shellcheck validated for script safety
 
 ## 🆘 **Support**
 
 - 🐛 [Issues](https://github.com/Dezocode/Monitor/issues)
 - 📖 [MCP System Documentation](https://github.com/Dezocode/mcp-system)
+
+## 🔧 **Troubleshooting**
+
+**Commands not found after installation:**
+```bash
+# Restart terminal or reload shell configuration
+source ~/.zshrc
+```
+
+**Homebrew not in PATH:**
+```bash
+eval "$(/opt/homebrew/bin/brew shellenv)"
+```
+
+**Python packages not found:**
+```bash
+# Verify Python 3.12 installation
+python3.12 --version
+# Add to PATH if needed
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+**Gemini CLI authentication:**
+```bash
+# Run gemini and follow the interactive login prompts
+gemini
+```
 
 ---
 

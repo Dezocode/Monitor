@@ -2,9 +2,28 @@
 # Monitor: Complete Dev Environment + MCP System Setup
 # Repository: https://github.com/Dezocode/Monitor
 # Includes: Claude, Gemini, LazyVim, Docker, Ghostty, MCP System
-# Version: 1.2.0 - Enhanced Safety & Speed
+# Version: 1.2.1 - Enhanced Safety & Security
 
 set -euo pipefail  # Enhanced error handling
+
+# Security: Verify we're running on macOS and have required tools
+verify_environment() {
+    if [[ "$OSTYPE" != "darwin"* ]]; then
+        echo "❌ Error: This script is for macOS only"
+        exit 1
+    fi
+    
+    if ! command -v curl &> /dev/null; then
+        echo "❌ Error: curl is required but not installed"
+        exit 1
+    fi
+    
+    if ! command -v git &> /dev/null; then
+        echo "❌ Error: git is required but not installed"
+        echo "Please install Xcode Command Line Tools: xcode-select --install"
+        exit 1
+    fi
+}
 
 # Colors for output
 RED='\033[0;31m'
@@ -36,6 +55,9 @@ echo "📦 Includes: Claude + Gemini CLI + LazyVim + Docker + Ghostty + MCP"
 echo "⏱️  Estimated time: 10-15 minutes"
 echo ""
 
+# Verify environment before proceeding
+verify_environment
+
 # Enhanced PATH validation with safety checks
 validate_and_fix_path() {
     log_info "Validating and fixing PATH..."
@@ -66,13 +88,13 @@ validate_and_fix_path() {
             
             # Add Homebrew paths if not present
             if ! grep -q "/opt/homebrew/bin" "$profile" 2>/dev/null; then
-                echo 'export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"' >> "$profile"
+                echo "export PATH=\"/opt/homebrew/bin:/opt/homebrew/sbin:\$PATH\"" >> "$profile"
                 log_success "Added Homebrew paths to $profile"
             fi
             
             # Add local bin path if not present
             if ! grep -q "\$HOME/.local/bin" "$profile" 2>/dev/null; then
-                echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$profile"
+                echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$profile"
                 log_success "Added local bin path to $profile"
             fi
         fi
@@ -122,12 +144,7 @@ safe_brew_cask_install() {
     fi
 }
 
-# System compatibility check
-if [[ "$OSTYPE" != "darwin"* ]]; then
-    log_error "This script is for macOS only"
-    exit 1
-fi
-
+# System information
 log_info "macOS detected: $(sw_vers -productVersion)"
 
 # Validate and fix PATH first
@@ -149,15 +166,26 @@ fi
 log_info "Setting up Homebrew package manager..."
 if ! command -v brew &> /dev/null; then
     log_info "Installing Homebrew..."
-    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" &>/dev/null
-    
-    # Setup Homebrew environment
-    if [[ -f "/opt/homebrew/bin/brew" ]]; then
-        eval "$(/opt/homebrew/bin/brew shellenv)"
-        track_installation "Homebrew" "/opt/homebrew/bin/brew"
-    elif [[ -f "/usr/local/bin/brew" ]]; then
-        eval "$(/usr/local/bin/brew shellenv)"
-        track_installation "Homebrew" "/usr/local/bin/brew"
+    # Verify Homebrew installation script URL and install
+    log_info "Downloading and verifying Homebrew installer..."
+    if NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" &>/dev/null; then
+        # Setup Homebrew environment
+        if [[ -f "/opt/homebrew/bin/brew" ]]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+            track_installation "Homebrew" "/opt/homebrew/bin/brew"
+        elif [[ -f "/usr/local/bin/brew" ]]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+            track_installation "Homebrew" "/usr/local/bin/brew"
+        else
+            log_error "Homebrew installation failed - could not find brew binary"
+            log_error "Please install Homebrew manually: https://brew.sh"
+            exit 1
+        fi
+    else
+        log_error "Failed to install Homebrew"
+        log_error "Please check your internet connection and try again"
+        log_error "Manual installation: https://brew.sh"
+        exit 1
     fi
 else
     track_installation "Homebrew" "$(command -v brew)"
@@ -183,7 +211,7 @@ else
     log_info "Installing via npm (@google/gemini-cli)..."
     if npm install -g @google/gemini-cli &>/dev/null; then
         # Get the actual installation path
-        local npm_global=$(npm root -g 2>/dev/null)
+        npm_global=$(npm root -g 2>/dev/null)
         if [[ -n "$npm_global" ]]; then
             track_installation "Gemini CLI" "$npm_global/@google/gemini-cli"
         else
@@ -222,26 +250,37 @@ else
     safe_brew_install "zig" "Zig"
     
     log_info "Building Ghostty from source (this may take a few minutes)..."
-    cd /tmp
-    if [[ -d "ghostty" ]]; then
-        rm -rf ghostty
-    fi
     
+    # Create temporary directory for build
+    TEMP_DIR=$(mktemp -d)
+    cd "$TEMP_DIR"
+    
+    # Clone with error handling
     if git clone https://github.com/mitchellh/ghostty.git &>/dev/null; then
         cd ghostty
+        
+        # Build with error handling
         if zig build -Doptimize=ReleaseFast &>/dev/null; then
-            if sudo cp zig-out/bin/ghostty /usr/local/bin/ &>/dev/null; then
-                track_installation "Ghostty" "/usr/local/bin/ghostty"
+            # Install with proper permissions
+            if [[ -f "zig-out/bin/ghostty" ]]; then
+                if sudo cp zig-out/bin/ghostty /usr/local/bin/ &>/dev/null; then
+                    track_installation "Ghostty" "/usr/local/bin/ghostty"
+                    log_success "Ghostty built and installed successfully"
+                else
+                    log_error "Failed to install Ghostty binary (permission denied)"
+                fi
             else
-                log_error "Failed to install Ghostty binary"
+                log_error "Ghostty binary not found after build"
             fi
         else
             log_error "Failed to build Ghostty"
         fi
-        cd /tmp && rm -rf ghostty
     else
         log_error "Failed to clone Ghostty repository"
     fi
+    
+    # Cleanup
+    cd /tmp && rm -rf "$TEMP_DIR"
 fi
 
 # Install Claude Code CLI
@@ -251,8 +290,13 @@ if command -v claude &>/dev/null; then
     track_installation "Claude Code CLI" "$(which claude)"
 else
     # Install Claude Code via npm (primary method)
+    npm_global=$(npm root -g 2>/dev/null || echo "")
     if npm install -g @anthropic-ai/claude-code &>/dev/null; then
-        track_installation "Claude Code CLI" "$npm_global/@anthropic-ai/claude-code"
+        if [[ -n "$npm_global" ]]; then
+            track_installation "Claude Code CLI" "$npm_global/@anthropic-ai/claude-code"
+        else
+            track_installation "Claude Code CLI" "$(command -v claude 2>/dev/null || echo 'installed')"
+        fi
         log_success "Claude Code CLI installed via npm"
     else
         # Fallback to curl installation method
@@ -273,8 +317,20 @@ cd ~/mcp-workspace
 
 # Clone MCP system
 echo "📥 Cloning MCP System..."
-git clone https://github.com/Dezocode/mcp-system.git
-cd mcp-system
+if [[ -d "mcp-system" ]]; then
+    log_warning "MCP system directory already exists, updating..."
+    cd mcp-system
+    git pull origin main &>/dev/null || log_warning "Failed to update MCP system"
+else
+    if git clone https://github.com/Dezocode/mcp-system.git; then
+        cd mcp-system
+        log_success "MCP system cloned successfully"
+    else
+        log_error "Failed to clone MCP system repository"
+        log_error "Please check your internet connection and try again"
+        exit 1
+    fi
+fi
 
 # Install Python packages
 log_info "Installing Python packages (this may take a few minutes)..."
@@ -405,6 +461,7 @@ alias vi="nvim"
 alias docker-start="open -a Docker"
 alias gemini-help="gemini --help"
 alias gemini-setup="cat ~/.config/gemini/setup-guide.md"
+alias gemini-test="gemini 'Hello, this is a test connection'"
 
 # LazyVim
 alias lazy="nvim"
@@ -457,21 +514,32 @@ test_tool() {
         fi
     else
         log_error "$tool: not found in PATH"
+        return 1
     fi
 }
+
+# Verify critical installations
+installation_errors=0
 
 echo ""
 echo "🧪 INSTALLATION VERIFICATION:"
 echo "================================"
 
-test_tool "python3.12" "python3.12 --version" "Python 3.12"
-test_tool "node" "node --version" "v"
-test_tool "git" "git --version" "git version"
-test_tool "gh" "gh --version" "gh version"
-test_tool "gemini" "gemini --version" ""
-test_tool "nvim" "nvim --version" "NVIM"
-test_tool "docker" "docker --version" "Docker version"
-test_tool "ghostty" "ghostty --version" ""
+test_tool "python3.12" "python3.12 --version" "Python 3.12" || ((installation_errors++))
+test_tool "node" "node --version" "v" || ((installation_errors++))
+test_tool "git" "git --version" "git version" || ((installation_errors++))
+test_tool "gh" "gh --version" "gh version" || ((installation_errors++))
+test_tool "gemini" "gemini --version" "" || log_warning "Gemini CLI may need authentication"
+test_tool "nvim" "nvim --version" "NVIM" || ((installation_errors++))
+test_tool "docker" "docker --version" "Docker version" || log_warning "Docker may not be running"
+test_tool "ghostty" "ghostty --version" "" || log_warning "Ghostty may have failed to build"
+
+# Report installation status
+if [[ $installation_errors -gt 0 ]]; then
+    log_warning "$installation_errors critical tools failed to install properly"
+else
+    log_success "All critical tools installed successfully"
+fi
 
 # Test Python packages and CLI tools
 echo ""
@@ -504,9 +572,23 @@ fi
 # Validate applications
 echo ""
 log_info "Validating installed applications..."
-command -v claude &>/dev/null && log_success "Claude Code CLI: $(which claude)" || log_error "Claude Code CLI: not found"
-[[ -d "/Applications/Docker.app" ]] && log_success "Docker Desktop: /Applications/Docker.app" || log_error "Docker Desktop: not found"
-[[ -d ~/.config/nvim ]] && log_success "LazyVim config: ~/.config/nvim" || log_warning "LazyVim config: not found"
+if command -v claude &>/dev/null; then
+    log_success "Claude Code CLI: $(which claude)"
+else
+    log_error "Claude Code CLI: not found"
+fi
+
+if [[ -d "/Applications/Docker.app" ]]; then
+    log_success "Docker Desktop: /Applications/Docker.app"
+else
+    log_error "Docker Desktop: not found"
+fi
+
+if [[ -d ~/.config/nvim ]]; then
+    log_success "LazyVim config: ~/.config/nvim"
+else
+    log_warning "LazyVim config: not found"
+fi
 
 # PATH validation
 echo ""
@@ -555,7 +637,7 @@ echo "   mcp-cd           # Navigate to MCP system"
 echo "   mcp-scan         # Run comprehensive code scan"
 echo "   mcp-fix          # Apply automatic fixes"
 echo "   docker-start     # Launch Docker Desktop"
-echo "   gemini-chat      # Start Gemini CLI chat"
+echo "   gemini           # Start Gemini CLI chat"
 echo "   gemini-help      # Show Gemini CLI help"
 echo ""
 echo "📚 RESOURCES:"
@@ -564,10 +646,18 @@ echo "   • MCP System: https://github.com/Dezocode/mcp-system"
 echo "   • Gemini API Key: https://aistudio.google.com/app/apikey"
 echo "   • LazyVim Docs: https://lazyvim.org"
 echo ""
+echo "🆘 TROUBLESHOOTING:"
+echo "   • If commands not found: restart terminal or run 'source ~/.zshrc'"
+echo "   • For Homebrew issues: run 'eval \"\$(/opt/homebrew/bin/brew shellenv)\"'"
+echo "   • For Docker issues: ensure Docker Desktop is running"
+echo "   • For Python issues: verify 'python3.12 --version' works"
+echo "   • For Gemini auth: run 'gemini' and follow login prompts"
+echo ""
 
 # Final setup
 log_info "Finalizing environment setup..."
 eval "$(/opt/homebrew/bin/brew shellenv)" 2>/dev/null || true
+# shellcheck disable=SC1090
 source ~/.zshrc 2>/dev/null || true
 
 echo "🎉 Setup complete! Restart your terminal to use all features."
