@@ -1,7 +1,7 @@
 # Monitor 🚀
 **Complete Development Environment Setup for macOS**
 
-One-command installation script for a complete AI development environment including MCP System, Claude Desktop, Gemini API, LazyVim, Docker, and Ghostty Terminal with semantic protection and high-resolution execution capabilities.
+One-command installation script for a complete AI development environment including MCP System, Claude Code CLI, Gemini CLI, LazyVim, Docker, and Ghostty Terminal with semantic protection and high-resolution execution capabilities.
 
 ## ✨ **One-Step Install**
 
@@ -21,7 +21,7 @@ One-command installation script for a complete AI development environment includ
 
 ### **Applications & Tools**
 - 👻 **Ghostty Terminal** (built from source)
-- 🤖 **Claude Desktop** (official release)
+- 🤖 **Claude Code CLI** (official CLI tool)
 - 💎 **Gemini CLI** (Google's AI CLI tool)
 - 📝 **LazyVim** (Neovim distribution)
 - 🐳 **Docker** (containerization)
@@ -44,7 +44,7 @@ After installation completes:
 1. **Restart Terminal** or run `source ~/.zshrc`
 2. **Set up Gemini CLI**: `gemini auth login`
 3. **Start Docker**: `docker-start` (if needed)
-4. **Launch Claude Desktop**: `open -a Claude`
+4. **Launch Claude Code**: `claude`
 5. **Start MCP System**: `~/mcp-workspace/launch-mcp-system.sh`
 6. **Launch LazyVim**: `lazy` or `nvim`
 

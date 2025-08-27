@@ -244,27 +244,25 @@ else
     fi
 fi
 
-# Install Claude Desktop
-log_info "Installing Claude Desktop..."
-if [[ -d "/Applications/Claude.app" ]]; then
-    log_warning "Claude Desktop already installed, skipping"
-    track_installation "Claude Desktop" "/Applications/Claude.app"
+# Install Claude Code CLI
+log_info "Installing Claude Code CLI..."
+if command -v claude &>/dev/null; then
+    log_warning "Claude Code CLI already installed, skipping"
+    track_installation "Claude Code CLI" "$(which claude)"
 else
-    cd /tmp
-    if curl -L -o "Claude.dmg" "https://claude.ai/download/mac" &>/dev/null; then
-        if hdiutil attach "Claude.dmg" -quiet &>/dev/null; then
-            if cp -R "/Volumes/Claude/Claude.app" "/Applications/" &>/dev/null; then
-                track_installation "Claude Desktop" "/Applications/Claude.app"
-                hdiutil detach "/Volumes/Claude" -quiet &>/dev/null || true
-                rm -f "Claude.dmg"
-            else
-                log_error "Failed to copy Claude.app to Applications"
-            fi
-        else
-            log_error "Failed to mount Claude.dmg"
-        fi
+    # Install Claude Code via npm (primary method)
+    if npm install -g @anthropic-ai/claude-code &>/dev/null; then
+        track_installation "Claude Code CLI" "$npm_global/@anthropic-ai/claude-code"
+        log_success "Claude Code CLI installed via npm"
     else
-        log_error "Failed to download Claude Desktop"
+        # Fallback to curl installation method
+        log_info "npm installation failed, trying curl method..."
+        if curl -fsSL https://claude.ai/install.sh | bash &>/dev/null; then
+            track_installation "Claude Code CLI" "$(which claude)"
+            log_success "Claude Code CLI installed via curl"
+        else
+            log_error "Failed to install Claude Code CLI"
+        fi
     fi
 fi
 
@@ -506,7 +504,7 @@ fi
 # Validate applications
 echo ""
 log_info "Validating installed applications..."
-[[ -d "/Applications/Claude.app" ]] && log_success "Claude Desktop: /Applications/Claude.app" || log_error "Claude Desktop: not found"
+command -v claude &>/dev/null && log_success "Claude Code CLI: $(which claude)" || log_error "Claude Code CLI: not found"
 [[ -d "/Applications/Docker.app" ]] && log_success "Docker Desktop: /Applications/Docker.app" || log_error "Docker Desktop: not found"
 [[ -d ~/.config/nvim ]] && log_success "LazyVim config: ~/.config/nvim" || log_warning "LazyVim config: not found"
 
@@ -539,11 +537,11 @@ echo "🎯 IMMEDIATE NEXT STEPS:"
 echo "1. source ~/.zshrc  # (or restart terminal)"
 echo "2. gemini auth login  # (set up Gemini CLI authentication)"
 echo "3. docker-start     # (launch Docker if needed)"
-echo "4. open -a Claude   # (launch Claude Desktop)" 
+echo "4. claude           # (launch Claude Code CLI)" 
 echo "5. ~/mcp-workspace/launch-mcp-system.sh  # (start MCP server)"
 echo ""
 echo "🚀 WHAT'S NOW AVAILABLE:"
-echo "   • 🤖 Claude Desktop + Anthropic API"
+echo "   • 🤖 Claude Code CLI + Anthropic API"
 echo "   • 💎 Gemini CLI (Google AI)"
 echo "   • 📝 LazyVim (modern Neovim)"
 echo "   • 🐳 Docker + containerization"
