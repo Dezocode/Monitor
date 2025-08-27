@@ -2,128 +2,248 @@
 # Monitor: Complete Dev Environment + MCP System Setup
 # Repository: https://github.com/Dezocode/Monitor
 # Includes: Claude, Gemini, LazyVim, Docker, Ghostty, MCP System
+# Version: 1.2.0 - Enhanced Safety & Speed
 
-set -e
+set -euo pipefail  # Enhanced error handling
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Logging functions
+log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
+log_success() { echo -e "${GREEN}✅ $1${NC}"; }
+log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
+log_error() { echo -e "${RED}❌ $1${NC}"; }
+
+# Track installation progress
+INSTALLED_TOOLS=()
+INSTALLATION_PATHS=()
+
+track_installation() {
+    INSTALLED_TOOLS+=("$1")
+    INSTALLATION_PATHS+=("$2")
+    log_success "$1 installed at: $2"
+}
 
 echo "🚀 MONITOR: COMPLETE DEV ENVIRONMENT SETUP"
 echo "==========================================="
 echo "🔗 Repository: https://github.com/Dezocode/Monitor"
 echo "📦 Includes: Claude + Gemini + LazyVim + Docker + Ghostty + MCP"
+echo "⏱️  Estimated time: 10-15 minutes"
 echo ""
 
-# Path validation function
+# Enhanced PATH validation with safety checks
 validate_and_fix_path() {
-    echo "🔧 Validating and fixing PATH..."
+    log_info "Validating and fixing PATH..."
     
     # Common paths that should be in PATH
     local common_paths=(
-        "/usr/local/bin"
         "/opt/homebrew/bin" 
         "/opt/homebrew/sbin"
+        "/usr/local/bin"
         "$HOME/.local/bin"
         "/usr/bin"
         "/bin"
     )
     
-    # Check and add missing paths
+    # Check and add missing paths (temporary for this session)
     for path in "${common_paths[@]}"; do
-        if [[ ":$PATH:" != *":$path:"* ]] && [[ -d "$path" ]]; then
+        if [[ -d "$path" ]] && [[ ":$PATH:" != *":$path:"* ]]; then
             export PATH="$path:$PATH"
-            echo "   ✅ Added $path to PATH"
+            log_success "Added $path to current session PATH"
         fi
     done
     
-    # Update shell profiles
+    # Update shell profiles safely
     for profile in ~/.zshrc ~/.bash_profile ~/.bashrc; do
         if [[ -f "$profile" ]]; then
-            if ! grep -q "opt/homebrew/bin" "$profile"; then
+            # Create backup
+            cp "$profile" "${profile}.monitor-backup" || true
+            
+            # Add Homebrew paths if not present
+            if ! grep -q "/opt/homebrew/bin" "$profile" 2>/dev/null; then
                 echo 'export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"' >> "$profile"
+                log_success "Added Homebrew paths to $profile"
             fi
-            if ! grep -q ".local/bin" "$profile"; then
+            
+            # Add local bin path if not present
+            if ! grep -q "\$HOME/.local/bin" "$profile" 2>/dev/null; then
                 echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$profile"
+                log_success "Added local bin path to $profile"
             fi
         fi
     done
 }
 
-# Check macOS
+# Safe command execution with logging
+safe_brew_install() {
+    local package="$1"
+    local display_name="${2:-$package}"
+    
+    if command -v "$package" &> /dev/null; then
+        log_warning "$display_name already installed, skipping"
+        track_installation "$display_name" "$(command -v "$package")"
+        return 0
+    fi
+    
+    log_info "Installing $display_name..."
+    if brew install "$package" &>/dev/null; then
+        local install_path
+        install_path=$(command -v "$package" 2>/dev/null || echo "/opt/homebrew/bin/$package")
+        track_installation "$display_name" "$install_path"
+    else
+        log_error "Failed to install $display_name"
+        return 1
+    fi
+}
+
+# Safe cask installation
+safe_brew_cask_install() {
+    local package="$1"
+    local display_name="${2:-$package}"
+    local app_path="/Applications/${display_name}.app"
+    
+    if [[ -d "$app_path" ]]; then
+        log_warning "$display_name already installed, skipping"
+        track_installation "$display_name" "$app_path"
+        return 0
+    fi
+    
+    log_info "Installing $display_name..."
+    if brew install --cask "$package" &>/dev/null; then
+        track_installation "$display_name" "$app_path"
+    else
+        log_error "Failed to install $display_name"
+        return 1
+    fi
+}
+
+# System compatibility check
 if [[ "$OSTYPE" != "darwin"* ]]; then
-    echo "❌ This script is for macOS only"
+    log_error "This script is for macOS only"
     exit 1
 fi
+
+log_info "macOS detected: $(sw_vers -productVersion)"
 
 # Validate and fix PATH first
 validate_and_fix_path
 
 # Install Xcode Command Line Tools
-echo "📱 Installing Xcode Command Line Tools..."
+log_info "Checking Xcode Command Line Tools..."
 if ! xcode-select -p &> /dev/null; then
+    log_warning "Xcode Command Line Tools not found - installing..."
     xcode-select --install
-    echo "⏳ Please complete Xcode installation and re-run:"
+    log_warning "Please complete Xcode installation and re-run:"
     echo "   /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Dezocode/Monitor/main/install.sh)\""
     exit 1
+else
+    track_installation "Xcode Command Line Tools" "$(xcode-select -p)"
 fi
 
-# Install Homebrew
-echo "🍺 Installing Homebrew..."
+# Install/Update Homebrew
+log_info "Setting up Homebrew package manager..."
 if ! command -v brew &> /dev/null; then
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
-    eval "$(/opt/homebrew/bin/brew shellenv)"
+    log_info "Installing Homebrew..."
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" &>/dev/null
+    
+    # Setup Homebrew environment
+    if [[ -f "/opt/homebrew/bin/brew" ]]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+        track_installation "Homebrew" "/opt/homebrew/bin/brew"
+    elif [[ -f "/usr/local/bin/brew" ]]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+        track_installation "Homebrew" "/usr/local/bin/brew"
+    fi
+else
+    track_installation "Homebrew" "$(command -v brew)"
 fi
 
-echo "🔄 Updating Homebrew..."
-brew update
+log_info "Updating Homebrew (silent)..."
+brew update &>/dev/null || log_warning "Homebrew update failed (continuing anyway)"
 
-# Install core dependencies
-echo "🐍 Installing Python 3.12..."
-brew install python@3.12
+# Install core development tools
+log_info "Installing core development tools..."
+safe_brew_install "python@3.12" "Python 3.12"
+safe_brew_install "node" "Node.js" 
+safe_brew_install "git" "Git"
+safe_brew_install "gh" "GitHub CLI"
 
-echo "📦 Installing Node.js..."
-brew install node
+# Install containerization
+log_info "Installing Docker..."
+safe_brew_cask_install "docker" "Docker"
 
-echo "📝 Installing Git..."  
-brew install git
+# Install editor and dependencies
+log_info "Installing Neovim and LazyVim dependencies..."
+safe_brew_install "neovim" "Neovim"
+safe_brew_install "ripgrep" "Ripgrep"
+safe_brew_install "fd" "fd (find alternative)"
+safe_brew_install "tree-sitter" "Tree-sitter"
+safe_brew_install "lua" "Lua"
+safe_brew_install "luarocks" "LuaRocks"
 
-echo "🐙 Installing GitHub CLI..."
-brew install gh
+log_info "Installing development fonts..."
+safe_brew_cask_install "font-jetbrains-mono-nerd-font" "JetBrains Mono Nerd Font"
 
-# Install Docker
-echo "🐳 Installing Docker..."
-brew install --cask docker
-echo "   Docker installed - you may need to launch Docker.app once"
-
-# Install Neovim for LazyVim
-echo "📝 Installing Neovim..."
-brew install neovim
-
-# Install LazyVim dependencies
-echo "🚀 Installing LazyVim dependencies..."
-brew install ripgrep fd tree-sitter lua luarocks
-brew install --cask font-jetbrains-mono-nerd-font
-
-# Install Ghostty
-echo "👻 Installing Ghostty Terminal..."
-brew install zig
-cd /tmp
-git clone https://github.com/mitchellh/ghostty.git
-cd ghostty
-zig build -Doptimize=ReleaseFast
-sudo cp zig-out/bin/ghostty /usr/local/bin/
-cd /tmp && rm -rf ghostty
+# Install Ghostty Terminal
+log_info "Installing Ghostty Terminal..."
+if command -v ghostty &> /dev/null; then
+    log_warning "Ghostty already installed, skipping"
+    track_installation "Ghostty" "$(command -v ghostty)"
+else
+    log_info "Installing Zig compiler for Ghostty..."
+    safe_brew_install "zig" "Zig"
+    
+    log_info "Building Ghostty from source (this may take a few minutes)..."
+    cd /tmp
+    if [[ -d "ghostty" ]]; then
+        rm -rf ghostty
+    fi
+    
+    if git clone https://github.com/mitchellh/ghostty.git &>/dev/null; then
+        cd ghostty
+        if zig build -Doptimize=ReleaseFast &>/dev/null; then
+            if sudo cp zig-out/bin/ghostty /usr/local/bin/ &>/dev/null; then
+                track_installation "Ghostty" "/usr/local/bin/ghostty"
+            else
+                log_error "Failed to install Ghostty binary"
+            fi
+        else
+            log_error "Failed to build Ghostty"
+        fi
+        cd /tmp && rm -rf ghostty
+    else
+        log_error "Failed to clone Ghostty repository"
+    fi
+fi
 
 # Install Claude Desktop
-echo "🤖 Installing Claude Desktop..."
-cd /tmp
-curl -L -o "Claude.dmg" "https://claude.ai/download/mac"
-hdiutil attach "Claude.dmg" -quiet
-cp -R "/Volumes/Claude/Claude.app" "/Applications/"
-hdiutil detach "/Volumes/Claude" -quiet
-rm "Claude.dmg"
-
-# Install Gemini API tools
-echo "💎 Installing Gemini API tools..."
-python3.12 -m pip install --user google-generativeai google-cloud-aiplatform
+log_info "Installing Claude Desktop..."
+if [[ -d "/Applications/Claude.app" ]]; then
+    log_warning "Claude Desktop already installed, skipping"
+    track_installation "Claude Desktop" "/Applications/Claude.app"
+else
+    cd /tmp
+    if curl -L -o "Claude.dmg" "https://claude.ai/download/mac" &>/dev/null; then
+        if hdiutil attach "Claude.dmg" -quiet &>/dev/null; then
+            if cp -R "/Volumes/Claude/Claude.app" "/Applications/" &>/dev/null; then
+                track_installation "Claude Desktop" "/Applications/Claude.app"
+                hdiutil detach "/Volumes/Claude" -quiet &>/dev/null || true
+                rm -f "Claude.dmg"
+            else
+                log_error "Failed to copy Claude.app to Applications"
+            fi
+        else
+            log_error "Failed to mount Claude.dmg"
+        fi
+    else
+        log_error "Failed to download Claude Desktop"
+    fi
+fi
 
 # Create workspace
 echo "📂 Setting up workspace..."
@@ -136,15 +256,37 @@ git clone https://github.com/Dezocode/mcp-system.git
 cd mcp-system
 
 # Install Python packages
-echo "🔧 Installing Python dependencies..."
-python3.12 -m pip install --upgrade pip --user
+log_info "Installing Python packages (this may take a few minutes)..."
+python3.12 -m pip install --upgrade pip --user &>/dev/null
 
-python3.12 -m pip install --user \
-    mcp fastapi uvicorn pydantic aiofiles click rich watchdog \
-    psutil gitpython semantic-version anthropic openai \
-    google-generativeai google-cloud-aiplatform \
-    black isort mypy flake8 pylint pytest pytest-asyncio \
-    jsonschema typing-extensions docker
+# Install packages in batches for better error handling
+log_info "Installing core MCP and API packages..."
+if python3.12 -m pip install --user mcp anthropic openai google-generativeai google-cloud-aiplatform &>/dev/null; then
+    log_success "Core AI APIs installed"
+else
+    log_error "Failed to install some AI API packages"
+fi
+
+log_info "Installing development frameworks..."
+if python3.12 -m pip install --user fastapi uvicorn pydantic aiofiles click rich watchdog &>/dev/null; then
+    log_success "Development frameworks installed"
+else
+    log_error "Failed to install some development packages"
+fi
+
+log_info "Installing development tools..."
+if python3.12 -m pip install --user black isort mypy flake8 pylint pytest pytest-asyncio &>/dev/null; then
+    log_success "Development tools installed"  
+else
+    log_error "Failed to install some development tools"
+fi
+
+log_info "Installing utility packages..."
+if python3.12 -m pip install --user psutil gitpython semantic-version jsonschema typing-extensions docker &>/dev/null; then
+    log_success "Utility packages installed"
+else
+    log_error "Failed to install some utility packages"
+fi
 
 # Setup LazyVim
 echo "🚀 Setting up LazyVim..."
@@ -241,65 +383,132 @@ python3.12 mcp-tools/pipeline-mcp/src/main.py
 EOFLAUNCH
 chmod +x ~/mcp-workspace/launch-mcp-system.sh
 
-# Test installations and path validation
+# Enhanced testing and validation
 echo ""
-echo "🧪 TESTING INSTALLATIONS:"
-echo "   Python: $(python3.12 --version 2>/dev/null || echo 'Not found in PATH')"
-echo "   Node: $(node --version 2>/dev/null || echo 'Not found in PATH')"  
-echo "   Git: $(git --version 2>/dev/null || echo 'Not found in PATH')"
-echo "   GitHub CLI: $(gh --version 2>/dev/null | head -n1 || echo 'Not found in PATH')"
-echo "   Docker: $(docker --version 2>/dev/null || echo 'Docker app not running')"
-echo "   Neovim: $(nvim --version 2>/dev/null | head -n1 || echo 'Not found in PATH')"
-echo "   Ghostty: $(ghostty --version 2>/dev/null || echo 'Installed')"
+log_info "Running comprehensive installation tests..."
+
+# Test core tools
+test_tool() {
+    local tool="$1"
+    local command="$2"
+    local expected_pattern="$3"
+    
+    if command -v "$tool" &> /dev/null; then
+        local version_output
+        version_output=$($command 2>/dev/null | head -n1 || echo "unknown version")
+        if [[ -n "$expected_pattern" ]] && [[ $version_output =~ $expected_pattern ]]; then
+            log_success "$tool: $version_output"
+        else
+            log_success "$tool: installed at $(command -v "$tool")"
+        fi
+    else
+        log_error "$tool: not found in PATH"
+    fi
+}
+
+echo ""
+echo "🧪 INSTALLATION VERIFICATION:"
+echo "================================"
+
+test_tool "python3.12" "python3.12 --version" "Python 3.12"
+test_tool "node" "node --version" "v"
+test_tool "git" "git --version" "git version"
+test_tool "gh" "gh --version" "gh version"
+test_tool "nvim" "nvim --version" "NVIM"
+test_tool "docker" "docker --version" "Docker version"
+test_tool "ghostty" "ghostty --version" ""
 
 # Test Python packages
 echo ""
-echo "🐍 TESTING PYTHON PACKAGES:"
-python3.12 -c "import anthropic; print('   ✅ Anthropic/Claude API')" 2>/dev/null || echo "   ❌ Anthropic API"
-python3.12 -c "import google.generativeai; print('   ✅ Gemini API')" 2>/dev/null || echo "   ❌ Gemini API"  
-python3.12 -c "import docker; print('   ✅ Docker Python')" 2>/dev/null || echo "   ❌ Docker Python"
-python3.12 -c "import mcp; print('   ✅ MCP Protocol')" 2>/dev/null || echo "   ❌ MCP Protocol"
+log_info "Testing Python packages..."
+python3.12 -c "
+try:
+    import anthropic; print('✅ Anthropic/Claude API: Ready')
+except ImportError:
+    print('❌ Anthropic API: Failed')
 
-# Validate PATH
+try:
+    import google.generativeai; print('✅ Gemini API: Ready') 
+except ImportError:
+    print('❌ Gemini API: Failed')
+
+try:
+    import docker; print('✅ Docker Python API: Ready')
+except ImportError:
+    print('❌ Docker Python API: Failed')
+
+try:
+    import mcp; print('✅ MCP Protocol: Ready')
+except ImportError:
+    print('❌ MCP Protocol: Failed')
+"
+
+# Validate applications
 echo ""
-echo "🔧 PATH VALIDATION:"
-echo "   Current PATH: $PATH"
+log_info "Validating installed applications..."
+[[ -d "/Applications/Claude.app" ]] && log_success "Claude Desktop: /Applications/Claude.app" || log_error "Claude Desktop: not found"
+[[ -d "/Applications/Docker.app" ]] && log_success "Docker Desktop: /Applications/Docker.app" || log_error "Docker Desktop: not found"
+[[ -d ~/.config/nvim ]] && log_success "LazyVim config: ~/.config/nvim" || log_warning "LazyVim config: not found"
+
+# PATH validation
+echo ""
+log_info "PATH validation results:"
+echo "Current PATH: $PATH"
 if command -v brew >/dev/null 2>&1; then
-    echo "   ✅ Homebrew in PATH"
+    log_success "Homebrew is accessible in PATH"
 else
-    echo "   ❌ Homebrew not in PATH - run: eval \"\$($(brew --prefix)/bin/brew shellenv)\""
+    log_error "Homebrew not in PATH - run: eval \"\$(brew --prefix)/bin/brew shellenv\""
 fi
 
+# Installation Summary
 echo ""
-echo "✅ MONITOR COMPLETE DEV ENVIRONMENT READY!"
+echo "📋 INSTALLATION SUMMARY:"
+echo "========================="
+echo "Total tools installed: ${#INSTALLED_TOOLS[@]}"
+echo ""
+
+for i in "${!INSTALLED_TOOLS[@]}"; do
+    printf "%-25s %s\n" "${INSTALLED_TOOLS[$i]}:" "${INSTALLATION_PATHS[$i]}"
+done
+
+echo ""
+log_success "MONITOR COMPLETE DEV ENVIRONMENT READY!"
 echo "=========================================="
 echo ""
-echo "🎯 NEXT STEPS:"
+echo "🎯 IMMEDIATE NEXT STEPS:"
 echo "1. source ~/.zshrc  # (or restart terminal)"
-echo "2. docker-start     # (launch Docker if needed)"
-echo "3. open -a Claude   # (launch Claude Desktop)" 
-echo "4. ~/mcp-workspace/launch-mcp-system.sh  # (start MCP server)"
+echo "2. export GEMINI_API_KEY=\"your-api-key\"  # (get from makersuite.google.com)"
+echo "3. docker-start     # (launch Docker if needed)"
+echo "4. open -a Claude   # (launch Claude Desktop)" 
+echo "5. ~/mcp-workspace/launch-mcp-system.sh  # (start MCP server)"
 echo ""
-echo "🚀 WHAT'S INSTALLED & READY:"
-echo "   • 🤖 Claude Desktop + API"
-echo "   • 💎 Gemini API (set GEMINI_API_KEY)"
-echo "   • 📝 LazyVim (nvim/lazy/lv commands)"
-echo "   • 🐳 Docker + Python Docker API"
+echo "🚀 WHAT'S NOW AVAILABLE:"
+echo "   • 🤖 Claude Desktop + Anthropic API"
+echo "   • 💎 Gemini API (Google AI)"
+echo "   • 📝 LazyVim (modern Neovim)"
+echo "   • 🐳 Docker + containerization"
 echo "   • 👻 Ghostty Terminal"
 echo "   • 🔧 MCP System with semantic protection"
 echo "   • ⚡ 165k+ AST nodes analyzed, unlimited auto-fix"
 echo ""
-echo "🔧 QUICK COMMANDS:"
+echo "🔧 ESSENTIAL COMMANDS:"
+echo "   lazy             # Launch LazyVim editor"
 echo "   mcp-cd           # Navigate to MCP system"
-echo "   mcp-scan         # Run version scan"
-echo "   mcp-fix          # Apply auto-fixes"
-echo "   lazy             # Launch LazyVim"
-echo "   docker-start     # Start Docker"
-echo "   gemini-test      # Test Gemini API"
+echo "   mcp-scan         # Run comprehensive code scan"
+echo "   mcp-fix          # Apply automatic fixes"
+echo "   docker-start     # Launch Docker Desktop"
+echo "   gemini-test      # Test Gemini API connection"
 echo ""
-echo "📖 Documentation: https://github.com/Dezocode/Monitor"
-echo "🔑 Get Gemini API key: https://makersuite.google.com/app/apikey"
+echo "📚 RESOURCES:"
+echo "   • Documentation: https://github.com/Dezocode/Monitor"
+echo "   • MCP System: https://github.com/Dezocode/mcp-system"
+echo "   • Gemini API Key: https://makersuite.google.com/app/apikey"
+echo "   • LazyVim Docs: https://lazyvim.org"
+echo ""
 
-# Final PATH validation
+# Final setup
+log_info "Finalizing environment setup..."
 eval "$(/opt/homebrew/bin/brew shellenv)" 2>/dev/null || true
 source ~/.zshrc 2>/dev/null || true
+
+echo "🎉 Setup complete! Restart your terminal to use all features."
