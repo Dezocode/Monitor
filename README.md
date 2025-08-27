@@ -42,7 +42,7 @@ One-command installation script for a complete AI development environment includ
 After installation completes:
 
 1. **Restart Terminal** or run `source ~/.zshrc`
-2. **Set up Gemini CLI**: `gemini auth login`
+2. **Set up Gemini CLI**: `gemini` (follow prompts to login)
 3. **Start Docker**: `docker-start` (if needed)
 4. **Launch Claude Code**: `claude`
 5. **Start MCP System**: `~/mcp-workspace/launch-mcp-system.sh`
